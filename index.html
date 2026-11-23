@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Atari</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{background:#000;color:#ddd;font:16px sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+#b{text-align:center}input,button{font-size:16px;padding:8px;margin:4px}#s{margin-top:12px;min-height:1.4em;color:#9ab}</style></head>
+<body><div id="b"><div>Atari</div><input id="p" type="password" placeholder="password" autofocus><button id="g">Load</button><div id="s"></div></div>
+<script>
+const $=id=>document.getElementById(id), st=t=>$('s').textContent=t;
+const hex=h=>Uint8Array.from(h.match(/../g),x=>parseInt(x,16));
+async function go(){
+ try{
+  $('g').disabled=true; st('Preparing...');
+  const m=await (await fetch('data/meta.json',{cache:'no-cache'})).json();
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode($('p').value),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:hex(m.salt),iterations:m.iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+  const dec=async f=>{const r=await fetch('data/'+f);if(!r.ok)throw new Error('fetch');const b=new Uint8Array(await r.arrayBuffer());
+   try{return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b.subarray(0,12)},key,b.subarray(12)));}catch(e){throw new Error('bad')}};
+  const shell=new TextDecoder().decode(await dec('s.bin'));
+  const CH=[]; const td=new TextDecoder('latin1');
+  for(let i=0;i<m.n;i++){ st('Loading '+(i+1)+' / '+m.n); CH.push(td.decode(await dec('c'+String(i).padStart(3,'0')+'.bin'))); }
+  window.__CH=CH; st('Starting...');
+  document.open(); document.write(shell); document.close();
+ }catch(e){ st(e.message=='bad'?'Wrong password.':'Error loading.'); $('g').disabled=false; }
+}
+$('g').onclick=go; $('p').onkeydown=e=>{if(e.key==='Enter')go()};
+</script></body></html>
